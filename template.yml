@@ -1,28 +1,50 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: 'AWS::Serverless-2016-10-31'
-Description: An AWS Lambda application that calls the Lambda API.
+Transform: AWS::Serverless-2016-10-31
+Description: An AWS Serverless Specification template describing your function.
+Parameters:
+  MongoDbUri:
+    Type: String
+    Description: The MongoDB connection string.
 Resources:
-  function:
+  python:
     Type: AWS::Serverless::Function
     Properties:
+      CodeUri: python/.
+      Description: ''
+      MemorySize: 128
+      Timeout: 3
       Handler: lambda_function.lambda_handler
       Runtime: python3.11
-      CodeUri: function/.
-      Description: Call the AWS Lambda API
-      Timeout: 10
-      # Function's execution role
+      Architectures:
+        - arm64
+      EventInvokeConfig:
+        MaximumEventAgeInSeconds: 21600
+        MaximumRetryAttempts: 2
+      EphemeralStorage:
+        Size: 512
+      Environment:
+        Variables:
+          MONGODB_URI: !Ref MongoDbUri
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Auto
+      SnapStart:
+        ApplyOn: None
+      PackageType: Zip
       Policies:
-        - AWSLambdaBasicExecutionRole
-        - AWSLambda_ReadOnlyAccess
-        - AWSXrayWriteOnlyAccess
-      Tracing: Active
-      Layers:
-        - !Ref libs
-  libs:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: blank-python-lib
-      Description: Dependencies for the blank-python sample app.
-      ContentUri: package/.
-      CompatibleRuntimes:
-        - python3.11
+        Statement:
+          - Effect: Allow
+            Action:
+              - codeguru-profiler:ConfigureAgent
+              - codeguru-profiler:CreateProfilingGroup
+              - codeguru-profiler:PostAgentProfile
+            Resource: arn:aws:codeguru-profiler:*:*:profilingGroup/*
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              - arn:aws:logs:*:*:*
