@@ -3,11 +3,11 @@ import logging
 import os
 
 import pymongo
-from aws_xray_sdk.core import patch_all
+# from aws_xray_sdk.core import patch_all
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-patch_all()
+# patch_all()
 
 client = pymongo.MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=10000, w=1)
 
