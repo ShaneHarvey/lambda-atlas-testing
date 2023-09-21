@@ -16,8 +16,8 @@ def lambda_handler(event, context):
     coll = client.test.test
     try:
         coll.insert_one({})
-        doc = coll.find_one(projection={"_id": 1})
+        doc = coll.find_one(projection={"_id": 0})
     except Exception as exc:
-        logger.info(f"## ERROR: {exc!r}")
+        logger.error(f"## ERROR: {exc!r}")
         raise
     return {"statusCode": 200, "body": json.dumps(doc)}

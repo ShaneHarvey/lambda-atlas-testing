@@ -26,7 +26,7 @@ class TestFunction(unittest.TestCase):
             context = {"requestid": "1234"}
             result = handler(event, context)
             print(str(result))
-            self.assertRegex(str(result), "FunctionCount", "Should match")
+            self.assertRegex(str(result), "'statusCode': 200", "Should match")
         finally:
             file.close()
         file.close()
