@@ -1,20 +1,23 @@
-import os
+import json
 import logging
-import jsonpickle
-import boto3
-from aws_xray_sdk.core import xray_recorder
+import os
+
+import pymongo
 from aws_xray_sdk.core import patch_all
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 patch_all()
 
-client = boto3.client('lambda')
-client.get_account_settings()
+client = pymongo.MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=10000, w=1)
+
 
 def lambda_handler(event, context):
-    logger.info('## ENVIRONMENT VARIABLES\r' + jsonpickle.encode(dict(**os.environ)))
-    logger.info('## EVENT\r' + jsonpickle.encode(event))
-    logger.info('## CONTEXT\r' + jsonpickle.encode(context))
-    response = client.get_account_settings()
-    return response['AccountUsage']
+    coll = client.test.test
+    try:
+        coll.insert_one({})
+        doc = coll.find_one(projection={"_id": 1})
+    except Exception as exc:
+        logger.info(f"## ERROR: {exc!r}")
+        raise
+    return {"statusCode": 200, "body": json.dumps(doc)}
