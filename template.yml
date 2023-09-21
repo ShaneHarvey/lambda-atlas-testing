@@ -6,7 +6,7 @@ Parameters:
     Type: String
     Description: The MongoDB connection string.
 Resources:
-  python:
+  MongoDBFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: python/.
@@ -48,3 +48,7 @@ Resources:
               - logs:PutLogEvents
             Resource:
               - arn:aws:logs:*:*:*
+Outputs:
+  MongoDBFunction:
+    Description: MongoDB Lambda Function ARN
+    Value: !GetAtt MongoDBFunction.Arn
