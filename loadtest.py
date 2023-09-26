@@ -2,6 +2,7 @@ import logging
 import os
 import queue
 import threading
+import time
 
 from pymongo import MongoClient
 from pymongo.event_loggers import ServerLogger
@@ -15,11 +16,12 @@ logger = logging.getLogger()
 
 
 LAMBDA_FUNCTION_URL: str = os.environ["LAMBDA_FUNCTION_URL"]
-LOAD_TEST_TIMEOUT: int = 60
+LOAD_TEST_TIMEOUT: int = 60 * 10
 
 
 class ServerStateChangeListener(ServerLogger):
     def __init__(self):
+        self.initial_primary = None
         self.events = queue.Queue()
 
     def opened(self, event: "ServerOpeningEvent") -> None:
@@ -27,10 +29,12 @@ class ServerStateChangeListener(ServerLogger):
 
     def description_changed(self, event: "ServerDescriptionChangedEvent") -> None:
         super().description_changed(event)
-        # Server changed from known to not primary or secondary.
+        # Replica set primary changed.
+        # TODO: use topologyVersion?
         if (
-            event.previous_description.is_server_type_known
-            and not event.new_description.is_readable
+            self.initial_primary is not None
+            and event.new_description.is_writable
+            and event.server_address != self.initial_primary
         ):
             self.events.put(event)
 
@@ -66,11 +70,16 @@ def main() -> None:
         )
         exit(1)
 
+    start_td = client.topology_description
+    logger.info(f"initial topology description: {start_td}")
     primary = client.primary
     if primary is None:
         # Sharded cluster
-        pass
+        logger.error("sharded cluster not supported yet")
+        exit(1)
+    listener.initial_primary = primary
 
+    start = time.time()
     worker = Worker()
     worker.start()
     try:
@@ -84,7 +93,12 @@ def main() -> None:
         worker.stop()
         worker.join()
 
-    logger.info(f"load test caused a server state change: {event}")
+    duration = time.time() - start
+    end_td = client.topology_description
+    logger.info(f"load test caused a server state change after {duration} seconds: {event}")
+    logger.info(
+        f"starting topology description:\n{start_td}\nending topology description:\n{end_td}"
+    )
 
 
 if __name__ == "__main__":
