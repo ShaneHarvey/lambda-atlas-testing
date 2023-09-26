@@ -178,4 +178,7 @@ pyrightconfig.json
 .idea/
 .aws-sam/
 .aws/
-
+lambda-invoke-standard.json
+output.json
+out.json
+bucket-name.txt
