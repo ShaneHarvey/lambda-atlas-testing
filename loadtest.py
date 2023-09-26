@@ -17,6 +17,7 @@ logger = logging.getLogger()
 
 LAMBDA_FUNCTION_URL: str = os.environ["LAMBDA_FUNCTION_URL"]
 LOAD_TEST_TIMEOUT: int = 60 * 10
+CONCURRENT_REQUESTS: int = 1500
 
 
 class ServerStateChangeListener(ServerLogger):
@@ -52,7 +53,7 @@ class Worker(threading.Thread):
 
     def run(self) -> None:
         while not self.stopped:
-            cmd = f"hey -n 3000 -c 1000 {LAMBDA_FUNCTION_URL}"
+            cmd = f"hey -n {CONCURRENT_REQUESTS*2} -c {CONCURRENT_REQUESTS} {LAMBDA_FUNCTION_URL}"
             logger.info(f"running: {cmd}")
             os.system(cmd)
 
