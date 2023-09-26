@@ -22,7 +22,7 @@ CONCURRENT_REQUESTS: int = 1500
 
 class ServerStateChangeListener(ServerLogger):
     def __init__(self):
-        self.initial_primary = None
+        self.versions = {}
         self.events = queue.Queue()
 
     def opened(self, event: "ServerOpeningEvent") -> None:
@@ -30,14 +30,12 @@ class ServerStateChangeListener(ServerLogger):
 
     def description_changed(self, event: "ServerDescriptionChangedEvent") -> None:
         super().description_changed(event)
-        # Replica set primary changed.
-        # TODO: use topologyVersion?
-        if (
-            self.initial_primary is not None
-            and event.new_description.is_writable
-            and event.server_address != self.initial_primary
-        ):
-            self.events.put(event)
+        # Use topologyVersion to detect state changes (Requires MongoDB 4.4+).
+        version = event.new_description.topology_version
+        if version is not None:
+            initial_sd = self.versions.setdefault(event.server_address, event.new_description)
+            if version != initial_sd.topology_version:
+                self.events.put((initial_sd, event))
 
     def closed(self, event: "ServerClosedEvent") -> None:
         super().closed(event)
@@ -78,13 +76,13 @@ def main() -> None:
         # Sharded cluster
         logger.error("sharded cluster not supported yet")
         exit(1)
-    listener.initial_primary = primary
 
     start = time.time()
     worker = Worker()
     worker.start()
     try:
-        event: ServerDescriptionChangedEvent = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
+        initial_sd, event = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
+        time.sleep(10)
     except queue.Empty:
         logger.error(
             f"load test failed to generate a server state change after {LOAD_TEST_TIMEOUT} seconds"
@@ -96,7 +94,9 @@ def main() -> None:
 
     duration = time.time() - start
     end_td = client.topology_description
-    logger.info(f"load test caused a server state change after {duration} seconds: {event}")
+    logger.info(
+        f"load test caused a server state change after {duration} seconds: {initial_sd} changed event {event}"
+    )
     logger.info(
         f"starting topology description:\n{start_td}\nending topology description:\n{end_td}"
     )
