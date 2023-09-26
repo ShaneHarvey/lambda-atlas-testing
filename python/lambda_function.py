@@ -15,8 +15,9 @@ client = pymongo.MongoClient(os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=
 def lambda_handler(event, context):
     coll = client.test.test
     try:
-        coll.insert_one({})
-        doc = coll.find_one(projection={"_id": 0})
+        with pymongo.timeout(2):
+            coll.insert_one({})
+            doc = coll.find_one(projection={"_id": 0})
     except Exception as exc:
         logger.error(f"## ERROR: {exc!r}")
         raise
