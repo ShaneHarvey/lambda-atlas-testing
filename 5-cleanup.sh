@@ -1,6 +1,6 @@
 #!/bin/bash
 set -eo pipefail
-STACK=blank-python
+STACK=python-atlas-test
 if [[ $# -eq 1 ]] ; then
     STACK=$1
     echo "Deleting stack $STACK"
@@ -34,5 +34,5 @@ while true; do
     esac
 done
 
-rm -f out.yml out.json function/*.pyc
-rm -rf package function/__pycache__
+rm -f out.yml out.json python/*.pyc
+rm -rf package python/__pycache__
