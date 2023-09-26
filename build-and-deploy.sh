@@ -50,4 +50,12 @@ check_lambda_output () {
 aws lambda invoke --function-name "${LAMBDA_FUNCTION_ARN}" --region "${AWS_REGION}" --log-type Tail lambda-invoke-standard.json > output.json
 check_lambda_output
 
+if [ ! -d .venv ]
+then
+    python3 -m venv .venv
+fi
+. .venv/bin/activate
+python -m pip install pymongo
+python loadtest.py
+
 #sam delete --stack-name ${STACK_NAME} --no-prompts --region "${AWS_REGION}"

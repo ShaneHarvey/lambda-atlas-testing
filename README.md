@@ -16,6 +16,7 @@ Use the following instructions to deploy the sample application.
 - [Python 3.11](https://www.python.org/downloads/). Sample also works with Python 3.7+. 
 - The Bash shell. For Linux and macOS, this is included by default. In Windows 10, you can install the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) to get a Windows-integrated version of Ubuntu and Bash.
 - [The AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) v1.17 or newer.
+- [hey](https://github.com/rakyll/hey) HTTP load testing tool. 
 
 If you use the AWS CLI v2, add the following to your [configuration file](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html) (`~/.aws/config`):
 
