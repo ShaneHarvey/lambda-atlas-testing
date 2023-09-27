@@ -20,7 +20,8 @@ LOAD_TEST_TIMEOUT: int = 60 * 5
 # M30 repl: 70 triggers timeouts (with streaming SDAM enabled)
 # M30 repl: 900-1400 triggers election (with streaming SDAM enabled)
 # M30 repl: 3000 succeeds without any timeouts (with streaming SDAM disabled)
-# M40 repl:
+# M60 repl: handles 3000 without any timeouts (with streaming SDAM enabled)
+# M140 repl: handles 3000 without any timeouts (with streaming SDAM enabled or disabled)
 CONCURRENT_REQUESTS: int = 3000
 
 # Session build up on unclosed clients?
@@ -101,7 +102,7 @@ def main() -> None:
 
     event = None
     start = time.time()
-    while event is None:
+    for _ in range(2):
         worker = Worker()
         worker.start()
         try:
