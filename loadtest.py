@@ -16,8 +16,8 @@ logger = logging.getLogger()
 
 
 LAMBDA_FUNCTION_URL: str = os.environ["LAMBDA_FUNCTION_URL"]
-LOAD_TEST_TIMEOUT: int = 60 * 10
-CONCURRENT_REQUESTS: int = 1500
+LOAD_TEST_TIMEOUT: int = 60 * 5
+CONCURRENT_REQUESTS: int = 1000
 
 
 class ServerStateChangeListener(ServerLogger):
@@ -45,6 +45,7 @@ class Worker(threading.Thread):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stopped = False
+        self.daemon = True  # Set to avoid blocking on exit.
 
     def stop(self):
         self.stopped = True
@@ -77,20 +78,26 @@ def main() -> None:
         logger.error("sharded cluster not supported yet")
         exit(1)
 
+    event = None
     start = time.time()
-    worker = Worker()
-    worker.start()
-    try:
-        initial_sd, event = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
-        time.sleep(10)
-    except queue.Empty:
-        logger.error(
-            f"load test failed to generate a server state change after {LOAD_TEST_TIMEOUT} seconds"
-        )
-        return
-    finally:
-        worker.stop()
-        worker.join()
+    while event is None:
+        worker = Worker()
+        worker.start()
+        try:
+            initial_sd, event = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
+            # Allow the workload to run for a few more seconds to increase the chance it triggers an election.
+            time.sleep(15)
+            break
+        except queue.Empty:
+            logger.error(
+                f"load test failed to generate a server state change after {LOAD_TEST_TIMEOUT} seconds"
+            )
+        finally:
+            logger.info("stopping workload thread...")
+            worker.stop()
+            worker.join()
+        logger.info("pausing the workload for 1 minute...")
+        time.sleep(60)
 
     duration = time.time() - start
     end_td = client.topology_description
