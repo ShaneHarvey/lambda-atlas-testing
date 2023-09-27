@@ -110,7 +110,11 @@ def main() -> None:
     event = None
     load_incrementally = True
     start = time.time()
-    for _ in range(2):
+    for i in range(2):
+        if i != 0:
+            load_incrementally = False
+            logger.info("pausing the workload for 1 minute...")
+            time.sleep(60)
         worker = Worker(load_incrementally)
         worker.start()
         try:
@@ -122,14 +126,14 @@ def main() -> None:
             logger.error(
                 f"load test failed to generate a server state change after {LOAD_TEST_TIMEOUT} seconds"
             )
+            initial_sd, event = None, None
         finally:
             logger.info("stopping workload thread...")
             worker.stop()
             worker.join()
-        load_incrementally = False
-        logger.info("pausing the workload for 1 minute...")
-        time.sleep(60)
 
+    if event is None:
+        exit(1)
     duration = time.time() - start
     end_td = client.topology_description
     logger.info(
