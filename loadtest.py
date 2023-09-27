@@ -22,7 +22,7 @@ LOAD_TEST_TIMEOUT: int = 60 * 5
 # M30 repl: 3000 succeeds without any timeouts (with streaming SDAM disabled)
 # M60 repl: handles 3000 without any timeouts (with streaming SDAM enabled)
 # M140 repl: handles 3000 without any timeouts (with streaming SDAM enabled or disabled)
-CONCURRENT_REQUESTS: int = 3000
+CONCURRENT_REQUESTS_LIMIT: int = 3000
 
 # Session build up on unclosed clients?
 
@@ -63,9 +63,15 @@ class ServerStateChangeListener(ServerLogger):
 
 
 class Worker(threading.Thread):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, load_incrementally, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stopped = False
+        self.load_incrementally = load_incrementally
+        self.step = 50
+        if load_incrementally:
+            self.concurrent_reqs = 50
+        else:
+            self.concurrent_reqs = CONCURRENT_REQUESTS_LIMIT
         self.daemon = True  # Set to avoid blocking on exit.
 
     def stop(self):
@@ -73,10 +79,11 @@ class Worker(threading.Thread):
 
     def run(self) -> None:
         while not self.stopped:
-            cmd = f"hey -n {CONCURRENT_REQUESTS*2} -c {CONCURRENT_REQUESTS} {LAMBDA_FUNCTION_URL}"
+            cmd = f"hey -n {self.concurrent_reqs*2} -c {self.concurrent_reqs} {LAMBDA_FUNCTION_URL}"
             logger.info(f"running: {cmd}")
             os.system(cmd)
             time.sleep(1)
+            self.concurrent_reqs = min(self.concurrent_reqs + self.step, CONCURRENT_REQUESTS_LIMIT)
 
 
 def main() -> None:
@@ -101,9 +108,10 @@ def main() -> None:
         exit(1)
 
     event = None
+    load_incrementally = True
     start = time.time()
     for _ in range(2):
-        worker = Worker()
+        worker = Worker(load_incrementally)
         worker.start()
         try:
             initial_sd, event = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
@@ -118,6 +126,7 @@ def main() -> None:
             logger.info("stopping workload thread...")
             worker.stop()
             worker.join()
+        load_incrementally = False
         logger.info("pausing the workload for 1 minute...")
         time.sleep(60)
 
