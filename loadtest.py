@@ -55,6 +55,7 @@ class Worker(threading.Thread):
             cmd = f"hey -n {CONCURRENT_REQUESTS*2} -c {CONCURRENT_REQUESTS} {LAMBDA_FUNCTION_URL}"
             logger.info(f"running: {cmd}")
             os.system(cmd)
+            time.sleep(1)
 
 
 def main() -> None:
