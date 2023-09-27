@@ -17,7 +17,27 @@ logger = logging.getLogger()
 
 LAMBDA_FUNCTION_URL: str = os.environ["LAMBDA_FUNCTION_URL"]
 LOAD_TEST_TIMEOUT: int = 60 * 5
-CONCURRENT_REQUESTS: int = 1000
+# M30 repl: 70 triggers timeouts (with streaming SDAM enabled)
+# M30 repl: 900-1400 triggers election (with streaming SDAM enabled)
+# M30 repl: 3000 succeeds without any timeouts (with streaming SDAM disabled)
+# M40 repl:
+CONCURRENT_REQUESTS: int = 3000
+
+# Session build up on unclosed clients?
+
+
+# *IMPORTANT*
+# M30: Perf falls off of the 3 sec default timeout when creating ~70 MongoClient concurrently
+# repro: func that creates/closes new client on each call:
+# hey -n 120 -c 60 https://zvzdr2cegmj7ags34g7uame4pa0mnfcg.lambda-url.us-east-1.on.aws/
+# Status code distribution:
+#  [200] 120 responses
+# hey -n 140 -c 70 https://zvzdr2cegmj7ags34g7uame4pa0mnfcg.lambda-url.us-east-1.on.aws/
+# Status code distribution:
+#  [200] 82 responses
+#  [502] 58 responses
+
+# Does this mean we can't jump more than 60~ instances? Load incrementally 60, 120, 180, etc...?
 
 
 class ServerStateChangeListener(ServerLogger):
