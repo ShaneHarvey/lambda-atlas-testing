@@ -22,8 +22,8 @@ sam deploy \
 
 #echo "Getting Lambda function URL..."
 LAMBDA_FUNCTION_ARN=$(sam list stack-outputs \
-  --stack-name ${STACK_NAME} \
-  --region ${AWS_REGION} \
+  --stack-name "${STACK_NAME}" \
+  --region "${AWS_REGION}" \
   --output json | jq '.[] | select(.OutputKey == "MongoDBFunction") | .OutputValue' | tr -d '"'
 )
 echo "Lambda function ARN: $LAMBDA_FUNCTION_ARN"
@@ -57,5 +57,3 @@ fi
 . .venv/bin/activate
 python -m pip install pymongo
 python loadtest.py
-
-#sam delete --stack-name ${STACK_NAME} --no-prompts --region "${AWS_REGION}"

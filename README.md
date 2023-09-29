@@ -32,48 +32,14 @@ Download or clone this repository.
     $ git clone https://github.com/ShaneHarvey/lambda-atlas-testing.git
     $ cd lambda-atlas-testing
 
-To create a new bucket for deployment artifacts, run `1-create-bucket.sh`.
+Install [hey](https://github.com/rakyll/hey) HTTP load testing tool. 
 
-    lambda-atlas-testing$ ./1-create-bucket.sh
-    make_bucket: lambda-artifacts-a5e491dbb5b22e0d
+To create and deploy the lambda function and run the load test, run `deploy-loadtest.sh`.
 
-To build a Lambda layer that contains the function's runtime dependencies, run `2-build-layer.sh`. Packaging dependencies in a layer reduces the size of the deployment package that you upload when you modify your code.
-
-    lambda-atlas-testing$ ./2-build-layer.sh
-
-# Deploy
-To deploy the application, run `3-deploy.sh`.
-
-    lambda-atlas-testing$ ./3-deploy.sh
-    Uploading to e678bc216e6a0d510d661ca9ae2fd941  9519118 / 9519118.0  (100.00%)
-    Successfully packaged artifacts and wrote output template to file out.yml.
-    Waiting for changeset to be created..
-    Waiting for stack create/update to complete
-    Successfully created/updated stack - python-atlas-test
-
-This script uses AWS CloudFormation to deploy the Lambda functions and an IAM role. If the AWS CloudFormation stack that contains the resources already exists, the script updates it with any changes to the template or function code.
-
-# Test
-To invoke the function, run `4-invoke.sh`.
-
-    lambda-atlas-testing$ ./4-invoke.sh
-    {
-        "StatusCode": 200,
-        "ExecutedVersion": "$LATEST"
-    }
-    {"TotalCodeSize": 410713698, "FunctionCount": 45}
-
-Let the script invoke the function a few times and then press `CRTL+C` to exit.
-
-The application uses AWS X-Ray to trace requests. Open the [X-Ray console](https://console.aws.amazon.com/xray/home#/service-map) to view the service map. The following service map shows the function calling Amazon S3.
-
-![Service Map](/images/blank-python-servicemap.png)
-
-Choose a node in the main function graph. Then choose **View traces** to see a list of traces. Choose any trace to view a timeline that breaks down the work done by the function.
-
-![Trace](/images/blank-python-trace.png)
+    lambda-atlas-testing$ ./deploy-loadtest.sh
+    ...
 
 # Cleanup
-To delete the application, run `5-cleanup.sh`.
+To delete the application, run `cleanup.sh`.
 
-    lambda-atlas-testing$ ./5-cleanup.sh
+    lambda-atlas-testing$ ./cleanup.sh
