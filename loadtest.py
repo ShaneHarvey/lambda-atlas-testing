@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import queue
@@ -15,14 +16,14 @@ logging.basicConfig(format=FORMAT, level=logging.INFO)
 logger = logging.getLogger()
 
 
-LAMBDA_FUNCTION_URL: str = os.environ["LAMBDA_FUNCTION_URL"]
-LOAD_TEST_TIMEOUT: int = 60 * 5
+LAMBDA_FUNCTION_URL: str = os.environ.get("LAMBDA_FUNCTION_URL")
+LOAD_TEST_DURATION: int = 60 * 5
 # M30 repl: 70 triggers timeouts (with streaming SDAM enabled)
 # M30 repl: 900-1400 triggers election (with streaming SDAM enabled)
 # M30 repl: 3000 succeeds without any timeouts (with streaming SDAM disabled)
 # M60 repl: handles 3000 without any timeouts (with streaming SDAM enabled)
 # M140 repl: handles 3000 without any timeouts (with streaming SDAM enabled or disabled)
-CONCURRENT_REQUESTS_LIMIT: int = 3000
+CONCURRENT_REQUESTS_LIMIT: int = 1000
 
 # Session build up on unclosed clients?
 
@@ -63,15 +64,16 @@ class ServerStateChangeListener(ServerLogger):
 
 
 class Worker(threading.Thread):
-    def __init__(self, load_incrementally, *args, **kwargs):
+    def __init__(self, increment, concurrency, url, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stopped = False
-        self.load_incrementally = load_incrementally
-        self.step = 50
-        if load_incrementally:
-            self.concurrent_reqs = 50
+        self.increment = increment
+        self.limit = concurrency
+        self.url = url
+        if increment >= 0:
+            self.concurrency = 0
         else:
-            self.concurrent_reqs = CONCURRENT_REQUESTS_LIMIT
+            self.concurrency = concurrency
         self.daemon = True  # Set to avoid blocking on exit.
 
     def stop(self):
@@ -79,14 +81,53 @@ class Worker(threading.Thread):
 
     def run(self) -> None:
         while not self.stopped:
-            cmd = f"hey -n {self.concurrent_reqs*2} -c {self.concurrent_reqs} {LAMBDA_FUNCTION_URL}"
+            self.concurrency = min(self.concurrency + self.increment, self.limit)
+            cmd = f"hey -n {self.concurrency*2} -c {self.concurrency} {self.url}"
             logger.info(f"running: {cmd}")
             os.system(cmd)
-            time.sleep(1)
-            self.concurrent_reqs = min(self.concurrent_reqs + self.step, CONCURRENT_REQUESTS_LIMIT)
+            # Sleep briefly to allow this program to be killed with Ctrl+C.
+            time.sleep(0.1)
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="Lambda load test",
+        description="Generates load to a Lambda function URL until a server state change is detected",
+    )
+    parser.add_argument(
+        "-u",
+        "--url",
+        default=LAMBDA_FUNCTION_URL,
+        help="the Lambda function URL, defaults to $LAMBDA_FUNCTION_URL",
+    )
+    parser.add_argument(
+        "-d",
+        "--duration",
+        type=int,
+        default=LOAD_TEST_DURATION,
+        help=f"duration to run the load test, defaults to {LOAD_TEST_DURATION} seconds",
+    )
+    parser.add_argument(
+        "-c",
+        "--concurrency",
+        type=int,
+        default=CONCURRENT_REQUESTS_LIMIT,
+        help=f"number of requests to run concurrently, defaults to {CONCURRENT_REQUESTS_LIMIT}",
+    )
+    parser.add_argument(
+        "-i",
+        "--increment",
+        type=int,
+        default=CONCURRENT_REQUESTS_LIMIT,
+        help=(
+            f"Increase the load incrementally until it reaches the concurrency limit, "
+            f"defaults to {CONCURRENT_REQUESTS_LIMIT}"
+        ),
+    )
+    args = parser.parse_args()
+    if not args.url:
+        print("ERROR: --url <URL> argument or $LAMBDA_FUNCTION_URL env var is required")
+        exit(1)
     listener = ServerStateChangeListener()
     client: MongoClient[dict] = MongoClient(
         os.getenv("MONGODB_URI"), serverSelectionTimeoutMS=10000, event_listeners=[listener]
@@ -101,30 +142,25 @@ def main() -> None:
 
     start_td = client.topology_description
     logger.info(f"initial topology description: {start_td}")
-    primary = client.primary
-    if primary is None:
-        # Sharded cluster
-        logger.error("sharded cluster not supported yet")
-        exit(1)
-
     event = None
-    load_incrementally = True
+    increment = args.increment
     start = time.time()
     for i in range(2):
         if i != 0:
-            load_incrementally = False
+            # Disable incremental load on the second run.
+            increment = args.concurrency
             logger.info("pausing the workload for 1 minute...")
             time.sleep(60)
-        worker = Worker(load_incrementally)
+        worker = Worker(increment, args.concurrency, args.url)
         worker.start()
         try:
-            initial_sd, event = listener.events.get(timeout=LOAD_TEST_TIMEOUT)
+            initial_sd, event = listener.events.get(timeout=args.duration)
             # Allow the workload to run for a few more seconds to increase the chance it triggers an election.
             time.sleep(15)
             break
         except queue.Empty:
             logger.error(
-                f"load test failed to generate a server state change after {LOAD_TEST_TIMEOUT} seconds"
+                f"load test failed to generate a server state change after {args.duration} seconds"
             )
             initial_sd, event = None, None
         finally:
